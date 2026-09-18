@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f5f9f7">
+  
+  <!-- Метатеги PWA для iOS Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Привычка">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  
+  <link rel="manifest" href="manifest.json">
+  <title>Привычка</title>
+
+  <script src="js/htmx.min.js"></script>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="phone">
+    
+    <header class="app-header">
+      <div class="grow">
+        <div class="brand" id="header-title">Привычка</div>
+        <div class="subtitle" id="header-subtitle">Загрузка...</div>
+      </div>
+    </header>
+
+    <main id="app-content">
+      <!-- Динамическое содержимое страниц -->
+    </main>
+
+    <nav class="tabbar">
+      <a href="#today" id="tab-today" class="tab-btn active"><em>◉</em>Сегодня</a>
+      <a href="#habits" id="tab-habits" class="tab-btn"><em>☰</em>Мои привычки</a>
+      <a href="#history" id="tab-history" class="tab-btn"><em>▦</em>История</a>
+      <a href="#journal" id="tab-journal" class="tab-btn"><em>◢</em>Дневник</a>
+    </nav>
+
+  </div>
+
+  <script>
+    // Хранилище привычек в браузерном LocalStorage
+    function getHabits() {
+      return JSON.parse(localStorage.getItem('habits_data') || '[]');
+    }
+
+    function saveHabits(habits) {
+      localStorage.setItem('habits_data', JSON.stringify(habits));
+    }
+
+    function addHabit(title) {
+      if (!title.trim()) return;
+      const habits = getHabits();
+      habits.push({
+        id: Date.now(),
+        title: title.trim(),
+        created: new Date().toISOString(),
+        history: []
+      });
+      saveHabits(habits);
+      renderPage();
+    }
+
+    // Маршрутизатор страниц для SPA / GitHub Pages
+    function renderPage() {
+      const hash = location.hash.replace('#', '') || 'today';
+      const habits = getHabits();
+      const content = document.getElementById('app-content');
+      const title = document.getElementById('header-title');
+      const subtitle = document.getElementById('header-subtitle');
+
+      // Обновление подсветки в нижнем меню
+      document.querySelectorAll('.tabbar a').forEach(el => el.classList.remove('active'));
+      const activeTab = document.getElementById(`tab-${hash}`) || document.getElementById('tab-today');
+      if (activeTab) activeTab.classList.add('active');
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+
+      if (hash === 'today') {
+        title.innerText = 'Привычка';
+        subtitle.innerText = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+        
+        if (habits.length === 0) {
+          content.innerHTML = `
+            <div class="empty">
+              <b>На сегодня дел нет</b>
+              Заведите привычку и выберите дни и время, когда будете её выполнять.
+              <button class="btn btn-inline" onclick="location.hash='habits-new'">Завести привычку</button>
+            </div>`;
+        } else {
+          content.innerHTML = `
+            <div class="habit-list">
+              ${habits.map(h => `
+                <div class="card">
+                  <span>${h.title}</span>
+                  <button class="btn btn-inline" onclick="markDone(${h.id})">Выполнено</button>
+                </div>
+              `).join('')}
+            </div>`;
+        }
+      } else if (hash === 'habits') {
+        title.innerText = 'Мои привычки';
+        subtitle.innerText = habits.length ? `Всего привычек: ${habits.length}` : 'Пока ни одной привычки';
+
+        if (habits.length === 0) {
+          content.innerHTML = `
+            <div class="empty">
+              <b>Привычек пока нет</b>
+              Чтобы привычка стала вашей, её нужно выполнить 21 раз по расписанию.
+            </div>
+            <button class="btn" onclick="location.hash='habits-new'">Завести привычку</button>`;
+        } else {
+          content.innerHTML = `
+            <div class="habit-list">
+              ${habits.map(h => `<div class="card"><b>${h.title}</b></div>`).join('')}
+            </div>
+            <br>
+            <button class="btn" onclick="location.hash='habits-new'">Завести привычку</button>`;
+        }
+      } else if (hash === 'habits-new') {
+        title.innerText = 'Новая привычка';
+        subtitle.innerText = 'Сформулируйте действие';
+        content.innerHTML = `
+          <div class="form-group">
+            <input type="text" id="habit-name-input" placeholder="Например: Делать зарядку" class="input-field" autofocus />
+            <br><br>
+            <button class="btn" onclick="const val = document.getElementById('habit-name-input').value; addHabit(val); location.hash='habits';">Сохранить</button>
+          </div>`;
+      } else if (hash === 'history') {
+        title.innerText = 'История';
+        subtitle.innerText = 'Отметки и сорванные серии';
+        content.innerHTML = `
+          <div class="empty">
+            <b>Истории пока нет</b>
+            Заведите привычку — и здесь появится календарь ваших отметок.
+          </div>`;
+      } else if (hash === 'journal') {
+        title.innerText = 'Дневник изменений';
+        subtitle.innerText = 'Привычки, по которым вы записываете результат';
+        content.innerHTML = `
+          <div class="empty">
+            <b>Пока нечего показывать</b>
+            Включите «Вести дневник изменений» у любой привычки — и здесь появится график ваших результатов.
+          </div>`;
+      }
+    }
+
+    function markDone(id) {
+      alert('Отлично! Отметка сохранена.');
+    }
+
+    window.addEventListener('hashchange', renderPage);
+    window.addEventListener('DOMContentLoaded', renderPage);
+
+    // Регистрация Service Worker для офлайн-режима PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(console.error);
+    }
+  </script>
+</body>
+</html>
